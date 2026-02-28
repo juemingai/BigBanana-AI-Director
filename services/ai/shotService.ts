@@ -35,6 +35,11 @@ const countEnglishWords = (text: string): number => {
   return matches ? matches.length : 0;
 };
 
+const NINE_GRID_NO_TEXT_HARD_CONSTRAINT = `HARD RULE (HIGHEST PRIORITY):
+- This storyboard grid image must contain ZERO readable text in every panel.
+- Do NOT include letters, words, numbers, subtitles, captions, logos, watermarks, signage, UI labels, or speech bubbles.
+- If signs/screens/documents/books/posters appear, render text areas as blank or illegible marks with no recognizable characters.`;
+
 // ============================================
 // 关键帧优化
 // ============================================
@@ -845,7 +850,9 @@ ${renderPromptTemplate(
     gridLayout,
     panelCount: layout.panelCount,
   }
-)}`;
+)}
+
+${NINE_GRID_NO_TEXT_HARD_CONSTRAINT}`;
 
   try {
     const imageUrl = await generateImage(

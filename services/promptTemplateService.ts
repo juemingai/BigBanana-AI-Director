@@ -164,7 +164,10 @@ Panels (left-to-right, top-to-bottom):`,
 - Output one single {gridLayout} grid image only
 - Keep character identity consistent across all panels
 - Keep lighting/color/mood consistent across all panels
-- Each panel is a complete cinematic keyframe`,
+- Each panel is a complete cinematic keyframe
+- ABSOLUTE NO-TEXT RULE: include zero readable text in every panel
+- Forbidden text elements: letters, words, numbers, subtitles, captions, logos, watermarks, signage, UI labels, speech bubbles
+- If signs/screens/documents appear, render text areas as blank or illegible marks with no recognizable characters`,
   },
   video: {
     sora2Chinese: `基于提供的参考图片生成视频。
