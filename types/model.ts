@@ -292,7 +292,23 @@ export const DEFAULT_VIDEO_PARAMS_VEO_FAST: VideoModelParams = {
  * 默认视频模型参数 (豆包 Seedance 1.5 Pro)
  * 火山引擎任务接口，当前按固定时长使用
  */
-export const DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE: VideoModelParams = {
+export const DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE_1_5: VideoModelParams = {
+  mode: 'async',
+  defaultAspectRatio: '16:9',
+  supportedAspectRatios: ['16:9', '9:16'],
+  defaultDuration: 8,
+  supportedDurations: [4, 8, 12],
+};
+
+// Backward-compatible export for existing imports.
+export const DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE: VideoModelParams =
+  DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE_1_5;
+
+/**
+ * Default video model params (Doubao Seedance 2.0)
+ * Volcengine async task API, currently using fixed durations.
+ */
+export const DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE_2_0: VideoModelParams = {
   mode: 'async',
   defaultAspectRatio: '16:9',
   supportedAspectRatios: ['16:9', '9:16'],
@@ -474,10 +490,10 @@ export const BUILTIN_VIDEO_MODELS: VideoModelDefinition[] = [
     type: 'video',
     providerId: 'volcengine',
     endpoint: '/api/v3/contents/generations/tasks',
-    description: '火山引擎异步任务模式（create task + poll task），支持 5/10/15 秒',
+    description: '火山引擎异步任务模式（create task + poll task），支持 4/8/12 秒',
     isBuiltIn: true,
     isEnabled: true,
-    params: { ...DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE },
+    params: { ...DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE_1_5 },
   },
   {
     id: 'doubao-seedance-2-0-260128',
@@ -489,7 +505,7 @@ export const BUILTIN_VIDEO_MODELS: VideoModelDefinition[] = [
     description: '火山引擎异步任务模式（create task + poll task），支持 5/10/15 秒',
     isBuiltIn: true,
     isEnabled: true,
-    params: { ...DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE },
+    params: { ...DEFAULT_VIDEO_PARAMS_DOUBAO_SEEDANCE_2_0 },
   },
 ];
 
