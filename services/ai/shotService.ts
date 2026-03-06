@@ -497,6 +497,42 @@ export const enhanceKeyframePrompt = async (
 /**
  * 使用 Chat 模型将镜头动作拆分为网格分镜（4/6/9）
  */
+const buildStoryboardGridPromptContext = (
+  layout: ReturnType<typeof resolveStoryboardGridLayout>
+) => {
+  const gridLayout = `${layout.cols}x${layout.rows}`;
+  const rowCount = layout.rows;
+  const columnCount = layout.cols;
+  const layoutInstruction = `exactly ${rowCount} rows x ${columnCount} columns`;
+  const layoutExample = Array.from({ length: rowCount }, (_, rowIndex) => {
+    const startPanel = rowIndex * columnCount + 1;
+    const endPanel = startPanel + columnCount - 1;
+    return `Row ${rowIndex + 1}: panels ${startPanel}-${endPanel}`;
+  }).join('; ');
+
+  const layoutSpecificConstraint = layout.panelCount === 6
+    ? 'CRITICAL: six-panel mode means exactly TWO rows and THREE columns. Never create a third row, a 3x3 / 9-panel board, blank extra boxes, or merged panels.'
+    : layout.panelCount === 4
+      ? 'CRITICAL: four-panel mode means exactly TWO rows and TWO columns. Never switch to 6-panel or 9-panel boards, and never use merged or unequal panels.'
+      : 'CRITICAL: nine-panel mode means exactly THREE rows and THREE columns. Never omit panels, merge panels, or turn it into an irregular collage.';
+
+  const layoutNegativePrompt = layout.panelCount === 6
+    ? '3x3 grid, 9-panel grid, third row, extra row, extra panel, blank extra panel, merged panels, unequal panel sizes, masonry collage, oversized hero panel'
+    : layout.panelCount === 4
+      ? '3x3 grid, 9-panel grid, 2x3 grid, 6-panel grid, extra row, extra panel, merged panels, unequal panel sizes, masonry collage, oversized hero panel'
+      : '2x3 grid, 6-panel grid, 2x2 grid, 4-panel grid, missing panel, merged panels, unequal panel sizes, masonry collage, oversized hero panel';
+
+  return {
+    gridLayout,
+    rowCount,
+    columnCount,
+    layoutInstruction,
+    layoutExample,
+    layoutSpecificConstraint,
+    layoutNegativePrompt,
+  };
+};
+
 export const generateNineGridPanels = async (
   actionSummary: string,
   cameraMovement: string,
@@ -509,7 +545,15 @@ export const generateNineGridPanels = async (
 ): Promise<NineGridPanel[]> => {
   const startTime = Date.now();
   const layout = resolveStoryboardGridLayout(panelCount);
-  const gridLayout = `${layout.cols}x${layout.rows}`;
+  const gridPromptContext = buildStoryboardGridPromptContext(layout);
+  const {
+    gridLayout,
+    rowCount,
+    columnCount,
+    layoutInstruction,
+    layoutExample,
+    layoutSpecificConstraint,
+  } = gridPromptContext;
   const templates = promptTemplates || resolvePromptTemplateConfig();
   const splitSystemTemplate = withTemplateFallback(
     templates.nineGrid.splitSystem,
@@ -533,6 +577,11 @@ export const generateNineGridPanels = async (
     {
       panelCount: layout.panelCount,
       gridLayout,
+      rowCount,
+      columnCount,
+      layoutInstruction,
+      layoutExample,
+      layoutSpecificConstraint,
     }
   );
   const userPrompt = renderPromptTemplate(
@@ -541,6 +590,11 @@ export const generateNineGridPanels = async (
       panelCount: layout.panelCount,
       lastIndex: layout.panelCount - 1,
       gridLayout,
+      rowCount,
+      columnCount,
+      layoutInstruction,
+      layoutExample,
+      layoutSpecificConstraint,
       actionSummary,
       cameraMovement,
       location: sceneInfo.location,
@@ -712,7 +766,16 @@ export const generateNineGridImage = async (
 ): Promise<string> => {
   const startTime = Date.now();
   const layout = resolveStoryboardGridLayout(options?.panelCount || panels.length);
-  const gridLayout = `${layout.cols}x${layout.rows}`;
+  const gridPromptContext = buildStoryboardGridPromptContext(layout);
+  const {
+    gridLayout,
+    rowCount,
+    columnCount,
+    layoutInstruction,
+    layoutExample,
+    layoutSpecificConstraint,
+    layoutNegativePrompt,
+  } = gridPromptContext;
   const templates = options?.promptTemplates || resolvePromptTemplateConfig();
   const imagePrefixTemplate = withTemplateFallback(
     templates.nineGrid.imagePrefix,
@@ -765,6 +828,11 @@ export const generateNineGridImage = async (
     {
       gridLayout,
       panelCount: layout.panelCount,
+      rowCount,
+      columnCount,
+      layoutInstruction,
+      layoutExample,
+      layoutSpecificConstraint,
       visualStyle: stylePrompt,
     }
   )}
@@ -775,6 +843,11 @@ ${renderPromptTemplate(
   {
     gridLayout,
     panelCount: layout.panelCount,
+    rowCount,
+    columnCount,
+    layoutInstruction,
+    layoutExample,
+    layoutSpecificConstraint,
   }
 )}
 
@@ -787,7 +860,7 @@ ${imageNoTextConstraintTemplate}`;
       aspectRatio,
       false,
       !!options?.hasTurnaround,
-      '',
+      layoutNegativePrompt,
       { referencePackType: 'shot' }
     );
     const duration = Date.now() - startTime;

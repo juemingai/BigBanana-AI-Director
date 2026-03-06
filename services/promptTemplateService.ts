@@ -493,8 +493,10 @@ Requirements:
 仅输出最终提示词文本:`,
   },
   nineGrid: {
-    splitSystem: `你是专业分镜师。请把同一镜头拆成{panelCount}个不重复视角，用于{gridLayout}网格分镜。保持同一场景与角色连续性。`,
+    splitSystem: `你是专业分镜师。请把同一镜头拆成{panelCount}个不重复视角，用于{gridLayout}网格分镜。网格布局必须严格为 {layoutInstruction}。保持同一场景与角色连续性。`,
     splitUser: `请将以下镜头动作拆解为{panelCount}个不同的摄影视角，用于生成一张{gridLayout}网格分镜图。
+网格硬约束：必须严格为 {layoutInstruction}，顺序为从左到右、从上到下。{layoutSpecificConstraint}
+行列顺序示意：{layoutExample}
 
 【镜头动作】{actionSummary}
 【原始镜头运动】{cameraMovement}
@@ -510,23 +512,31 @@ Requirements:
 5) 视角多样性：shotSize + cameraAngle 组合不得重复；当{panelCount}>=6时，至少使用3种不同 shotSize（否则至少2种）
 6) 叙事节奏：index=0 建立场景与主体，最后一格呈现动作结果/情绪落点，中间格逐步推进动作
 7) 连续性：保持角色外观、服装、道具、主运动方向一致；若需要反打/轴线跨越，必须在 description 明确说明动机`,
-    imagePrefix: `Create ONE cinematic storyboard image in a {gridLayout} grid ({panelCount} equal panels, thin white separators).
+    imagePrefix: `Create ONE cinematic storyboard contact sheet.
+Fixed layout: exactly {layoutInstruction} ({panelCount} equal panels, thin white separators).
+Panel order: {layoutExample}
+{layoutSpecificConstraint}
+The grid geometry is non-negotiable. Every panel must have identical size; no panel may span multiple cells.
 All panels depict the SAME scene; vary camera angle and shot size only.
 Style: {visualStyle}
 Panels (left-to-right, top-to-bottom):`,
     imagePanelTemplate: `Panel {index} ({position}): [{shotSize} / {cameraAngle}] - {description}`,
     imageSuffix: `Constraints:
-- Output one single {gridLayout} grid image only
+- Output one single storyboard grid image only
+- Exact layout = {layoutInstruction} and exactly {panelCount} panels total
 - Keep character identity consistent across all panels
 - Keep lighting/color/mood consistent across all panels
 - Each panel is a complete cinematic keyframe
+- All panel sizes must be identical; no merged cells, no oversized panels, no inset panels
+- Do NOT add extra rows, extra columns, blank panels, missing panels, or alternative layouts
+- {layoutSpecificConstraint}
 - ABSOLUTE NO-TEXT RULE: include zero readable text in every panel
 - Forbidden text elements: letters, words, numbers, subtitles, captions, logos, watermarks, signage, UI labels, speech bubbles
 - If signs/screens/documents appear, render text areas as blank or illegible marks with no recognizable characters`,
     imageNoTextConstraint: `HARD RULE (HIGHEST PRIORITY):
 - This storyboard grid image must contain ZERO readable text in every panel.
 - Do NOT include letters, words, numbers, subtitles, captions, logos, watermarks, signage, UI labels, or speech bubbles.
-- If signs/screens/documents/books/posters appear, render text areas as blank or illegible marks with no recognizable characters.`,
+- If signs/screens/documents/books/posters appear, render text areas as blank or illegible marks with no recognizable characters`,
     translatePrompt: `你是影视分镜翻译编辑。请将以下英文分镜描述翻译为自然、简洁的中文，仅用于界面展示。
 输入 JSON：
 {panelsJson}
@@ -815,7 +825,7 @@ export const PROMPT_TEMPLATE_FIELD_DEFINITIONS: PromptTemplateFieldDefinition[] 
     category: 'nineGrid',
     title: '九宫格拆分 System 模板',
     description: '网格拆分第一步使用的系统提示词。',
-    placeholders: ['panelCount', 'gridLayout'],
+    placeholders: ['panelCount', 'gridLayout', 'rowCount', 'columnCount', 'layoutInstruction', 'layoutExample', 'layoutSpecificConstraint'],
   },
   {
     path: 'nineGrid.splitUser',
@@ -825,6 +835,11 @@ export const PROMPT_TEMPLATE_FIELD_DEFINITIONS: PromptTemplateFieldDefinition[] 
     placeholders: [
       'panelCount',
       'gridLayout',
+      'rowCount',
+      'columnCount',
+      'layoutInstruction',
+      'layoutExample',
+      'layoutSpecificConstraint',
       'actionSummary',
       'cameraMovement',
       'characters',
@@ -836,7 +851,7 @@ export const PROMPT_TEMPLATE_FIELD_DEFINITIONS: PromptTemplateFieldDefinition[] 
     category: 'nineGrid',
     title: '九宫格图片前缀模板',
     description: '网格图片生成提示词前缀。',
-    placeholders: ['gridLayout', 'panelCount', 'visualStyle'],
+    placeholders: ['gridLayout', 'panelCount', 'rowCount', 'columnCount', 'layoutInstruction', 'layoutExample', 'layoutSpecificConstraint', 'visualStyle'],
   },
   {
     path: 'nineGrid.imagePanelTemplate',
@@ -850,7 +865,7 @@ export const PROMPT_TEMPLATE_FIELD_DEFINITIONS: PromptTemplateFieldDefinition[] 
     category: 'nineGrid',
     title: '九宫格图片后缀模板',
     description: '网格图片生成提示词后缀。',
-    placeholders: ['gridLayout', 'panelCount'],
+    placeholders: ['gridLayout', 'panelCount', 'rowCount', 'columnCount', 'layoutInstruction', 'layoutExample', 'layoutSpecificConstraint'],
   },
   {
     path: 'nineGrid.imageNoTextConstraint',
