@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CreditCard, ExternalLink, Loader2, RefreshCcw } from 'lucide-react';
-import { NewApiPayMethod, NewApiSession, NewApiStatus, NewApiSubscriptionPlanItem, NewApiTopupInfo } from '../../services/newApiService';
+import {
+  NewApiPayMethod,
+  NewApiSession,
+  NewApiStatus,
+  NewApiSubscriptionPlan,
+  NewApiSubscriptionPlanItem,
+  NewApiSubscriptionSummary,
+  NewApiTopupInfo,
+} from '../../services/newApiService';
 import { formatPayableAmount, formatQuota } from './utils';
 import { EmptyState, SectionCard, StatCard } from './ui';
 
@@ -16,6 +24,9 @@ interface BillingPanelProps {
   topupMethods: NewApiPayMethod[];
   subscriptionPlans: NewApiSubscriptionPlanItem[];
   subscriptionLoading: boolean;
+  billingPreference: string;
+  activeSubscriptions: NewApiSubscriptionSummary[];
+  allSubscriptions: NewApiSubscriptionSummary[];
   selectedPaymentMethod: string;
   setSelectedPaymentMethod: React.Dispatch<React.SetStateAction<string>>;
   topupAmount: string;
@@ -27,21 +38,124 @@ interface BillingPanelProps {
   onSubscriptionPay: (planId: number, paymentMethod: string) => Promise<void>;
   onRedeemCode: () => Promise<void>;
   onRefreshProfile: () => Promise<void>;
+  onRefreshSubscriptions: () => Promise<unknown>;
 }
 
 const normalizeDisplayAmount = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
 
-const formatSubscriptionPrice = (priceAmount: number | undefined, status: NewApiStatus | null) => {
-  const value = Number(priceAmount ?? 0);
+const getCurrencySymbol = (currency?: string, fallback = '￥') => {
+  switch (String(currency || '').toUpperCase()) {
+    case 'USD':
+      return '$';
+    case 'CNY':
+    case 'RMB':
+      return '¥';
+    case 'EUR':
+      return '€';
+    default:
+      return fallback;
+  }
+};
+
+const formatSubscriptionPrice = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const value = Number(plan?.price_amount ?? 0);
   if (!Number.isFinite(value) || value <= 0) return '待配置';
-  const symbol = status?.custom_currency_symbol || '￥';
+  const symbol = getCurrencySymbol(plan?.currency, status?.custom_currency_symbol || '￥');
   return `${symbol}${normalizeDisplayAmount(value)}`;
+};
+
+const formatSubscriptionDuration = (plan: NewApiSubscriptionPlan | undefined) => {
+  const unit = plan?.duration_unit || 'month';
+  const value = Number(plan?.duration_value || 1);
+  const unitLabels: Record<string, string> = {
+    year: '年',
+    month: '个月',
+    day: '天',
+    hour: '小时',
+    custom: '自定义',
+  };
+
+  if (unit === 'custom') {
+    const seconds = Number(plan?.custom_seconds || 0);
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} 天`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} 小时`;
+    return `${seconds} 秒`;
+  }
+
+  return `${value} ${unitLabels[unit] || unit}`;
+};
+
+const formatSubscriptionResetPeriod = (plan: NewApiSubscriptionPlan | undefined) => {
+  const period = plan?.quota_reset_period || 'never';
+  if (period === 'never') return '不重置';
+  if (period === 'daily') return '每天';
+  if (period === 'weekly') return '每周';
+  if (period === 'monthly') return '每月';
+  if (period === 'custom') {
+    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} 天`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} 小时`;
+    if (seconds >= 60) return `${Math.floor(seconds / 60)} 分钟`;
+    return `${seconds} 秒`;
+  }
+  return '不重置';
 };
 
 const formatPlanLimit = (limit: number | undefined) => {
   const value = Number(limit ?? 0);
-  return Number.isFinite(value) && value > 0 ? `限购 ${value} 次` : null;
+  return Number.isFinite(value) && value > 0 ? `限购 ${value}` : null;
 };
+
+const formatBillingPreference = (value: string) => {
+  switch (value) {
+    case 'subscription_first':
+      return '优先订阅';
+    case 'subscription_only':
+      return '仅用订阅';
+    case 'wallet_only':
+      return '仅用钱包';
+    case 'wallet_first':
+    default:
+      return '优先钱包';
+  }
+};
+
+const formatSubscriptionStatus = (status: string | undefined, isExpired: boolean) => {
+  if (status === 'cancelled') return '已作废';
+  if (status === 'active' && !isExpired) return '生效';
+  return '已过期';
+};
+
+const formatSubscriptionEndPrefix = (status: string | undefined, isExpired: boolean) => {
+  if (status === 'cancelled') return '作废于';
+  if (status === 'active' && !isExpired) return '至';
+  return '过期于';
+};
+
+const getRemainingDays = (subscription: NewApiSubscriptionSummary) => {
+  const endTime = Number(subscription.subscription?.end_time || 0);
+  if (!endTime) return 0;
+  const now = Date.now() / 1000;
+  return Math.max(0, Math.ceil((endTime - now) / 86400));
+};
+
+const getUsagePercent = (subscription: NewApiSubscriptionSummary) => {
+  const total = Number(subscription.subscription?.amount_total || 0);
+  const used = Number(subscription.subscription?.amount_used || 0);
+  if (total <= 0) return 0;
+  return Math.round((used / total) * 100);
+};
+
+const formatSubscriptionTime = (timestamp?: number) => {
+  if (!timestamp) return '—';
+  return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false });
+};
+
+const StatusPill: React.FC<{ active?: boolean; children: React.ReactNode }> = ({ active = false, children }) => (
+  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : 'border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-tertiary)]'}`}>
+    {children}
+  </span>
+);
 
 export const BillingPanel: React.FC<BillingPanelProps> = ({
   status,
@@ -55,6 +169,9 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
   topupMethods,
   subscriptionPlans,
   subscriptionLoading,
+  billingPreference,
+  activeSubscriptions,
+  allSubscriptions,
   selectedPaymentMethod,
   setSelectedPaymentMethod,
   topupAmount,
@@ -66,12 +183,14 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
   onSubscriptionPay,
   onRedeemCode,
   onRefreshProfile,
+  onRefreshSubscriptions,
 }) => {
   const amountOptions = topupInfo?.amount_options ?? [];
   const onlineTopupMethods = (topupInfo?.enable_online_topup === false ? [] : topupMethods).filter((method) => !['stripe', 'creem'].includes(method.type));
+  const walletPayMethods = topupInfo?.enable_online_topup ? onlineTopupMethods : [];
   const hasPaymentMethod = onlineTopupMethods.length > 0;
   const hasSubscriptionPlans = subscriptionPlans.length > 0;
-  const walletPayMethods = topupInfo?.enable_online_topup ? onlineTopupMethods : [];
+  const hasAnySubscription = allSubscriptions.length > 0;
 
   const paymentMethodTypes = new Set(topupMethods.map((method) => method.type));
   if (topupInfo?.enable_stripe_topup && subscriptionPlans.some((item) => item.plan?.stripe_price_id)) {
@@ -80,6 +199,26 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
   if (topupInfo?.enable_creem_topup && subscriptionPlans.some((item) => item.plan?.creem_product_id)) {
     paymentMethodTypes.add('creem');
   }
+
+  const planTitleMap = useMemo(() => {
+    const map = new Map<number, string>();
+    subscriptionPlans.forEach((item) => {
+      if (item.plan?.id) {
+        map.set(item.plan.id, item.plan.title || '');
+      }
+    });
+    return map;
+  }, [subscriptionPlans]);
+
+  const planPurchaseCountMap = useMemo(() => {
+    const map = new Map<number, number>();
+    allSubscriptions.forEach((item) => {
+      const planId = item.subscription?.plan_id;
+      if (!planId) return;
+      map.set(planId, (map.get(planId) || 0) + 1);
+    });
+    return map;
+  }, [allSubscriptions]);
 
   return (
     <div className="space-y-6">
@@ -104,77 +243,148 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
         </div>
       </SectionCard>
 
-      {(subscriptionLoading || hasSubscriptionPlans) && (
-        <SectionCard title="订阅充值" description="参考 new-api 的原始结构，把订阅套餐与钱包充值分开展示，便于直接选择支付渠道。">
+      {(subscriptionLoading || hasSubscriptionPlans || hasAnySubscription) && (
+        <SectionCard title="订阅充值" description="套餐有效期、额度重置、总额度和当前订阅展示与 new-api 页保持一致。">
           {subscriptionLoading ? (
             <div className="flex min-h-[220px] items-center justify-center text-[var(--text-tertiary)]">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
-          ) : !hasSubscriptionPlans ? (
-            <EmptyState title="当前没有可购买订阅套餐" description="如果你已经在 new-api 后端配置了订阅商品，请确认当前账号具备查看套餐的权限。" />
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-              {subscriptionPlans.map((item) => {
-                const plan = item.plan;
-                if (!plan?.id) return null;
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-base font-semibold text-[var(--text-primary)]">我的订阅</div>
+                    {activeSubscriptions.length > 0 ? <StatusPill active>{activeSubscriptions.length} 个生效中</StatusPill> : <StatusPill>无生效</StatusPill>}
+                    {allSubscriptions.length > activeSubscriptions.length && <StatusPill>{allSubscriptions.length - activeSubscriptions.length} 个已过期</StatusPill>}
+                  </div>
 
-                const availableMethods = [
-                  ...(plan.stripe_price_id && topupInfo?.enable_stripe_topup ? [{ key: 'stripe', label: 'Stripe' }] : []),
-                  ...(plan.creem_product_id && topupInfo?.enable_creem_topup ? [{ key: 'creem', label: 'Creem' }] : []),
-                  ...walletPayMethods.map((method) => ({ key: method.type, label: method.name })),
-                ];
+                  <div className="flex items-center gap-2">
+                    <StatusPill>{formatBillingPreference(billingPreference)}</StatusPill>
+                    <button
+                      onClick={() => void onRefreshSubscriptions()}
+                      disabled={subscriptionLoading}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-primary)] px-3 py-2 text-sm transition-colors hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60"
+                    >
+                      <RefreshCcw className={`h-4 w-4 ${subscriptionLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
 
-                const planTags = [
-                  plan.total_amount ? `总额度 ${formatQuota(plan.total_amount, status)}` : '总额度不限',
-                  plan.upgrade_group ? `升级分组 ${plan.upgrade_group}` : null,
-                  formatPlanLimit(plan.max_purchase_per_user),
-                ].filter(Boolean) as string[];
+                {hasAnySubscription ? (
+                  <div className="mt-4 space-y-4 border-t border-[var(--border-primary)] pt-4">
+                    {allSubscriptions.map((item, index) => {
+                      const subscription = item.subscription;
+                      const totalAmount = Number(subscription?.amount_total || 0);
+                      const usedAmount = Number(subscription?.amount_used || 0);
+                      const remainAmount = totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0;
+                      const isExpired = Number(subscription?.end_time || 0) < Date.now() / 1000;
+                      const isActive = subscription?.status === 'active' && !isExpired;
+                      const title = subscription?.plan_id ? planTitleMap.get(subscription.plan_id) : '';
 
-                return (
-                  <div key={plan.id} className="flex h-full flex-col rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-5">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-lg font-semibold text-[var(--text-primary)]">{plan.title || '订阅套餐'}</div>
-                        {formatPlanLimit(plan.max_purchase_per_user) && (
-                          <span className="rounded-full border border-[var(--border-primary)] px-2.5 py-1 text-xs text-[var(--text-tertiary)]">{formatPlanLimit(plan.max_purchase_per_user)}</span>
-                        )}
-                      </div>
-                      {plan.subtitle && <p className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">{plan.subtitle}</p>}
-                    </div>
+                      return (
+                        <div key={subscription?.id || index} className={index > 0 ? 'border-t border-[var(--border-primary)] pt-4' : ''}>
+                          <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-2 text-[var(--text-secondary)]">
+                              <span className="font-medium text-[var(--text-primary)]">{title ? `${title} · 订阅 #${subscription?.id}` : `订阅 #${subscription?.id}`}</span>
+                              <StatusPill active={isActive}>{formatSubscriptionStatus(subscription?.status, isExpired)}</StatusPill>
+                            </div>
+                            {isActive && <span className="text-[var(--text-tertiary)]">剩余 {getRemainingDays(item)} 天</span>}
+                          </div>
 
-                    <div className="mt-5 text-3xl font-semibold text-[var(--text-primary)]">{formatSubscriptionPrice(plan.price_amount, status)}</div>
+                          <div className="mt-2 text-sm text-[var(--text-tertiary)]">
+                            {formatSubscriptionEndPrefix(subscription?.status, isExpired)} {formatSubscriptionTime(subscription?.end_time)}
+                          </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {planTags.map((tag) => (
-                        <span key={tag} className="rounded-full border border-[var(--border-primary)] px-2.5 py-1 text-xs text-[var(--text-tertiary)]">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                          <div className="mt-2 text-sm text-[var(--text-tertiary)]">
+                            总额度:{' '}
+                            {totalAmount > 0 ? (
+                              <>
+                                {formatQuota(usedAmount, status)}/{formatQuota(totalAmount, status)} · 剩余 {formatQuota(remainAmount, status)}
+                                <span className="ml-2">已用 {getUsagePercent(item)}%</span>
+                              </>
+                            ) : '不限'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-[var(--text-tertiary)]">购买套餐后即可享受模型权益</div>
+                )}
+              </div>
 
-                    <div className="mt-6 flex-1">
-                      <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">可用支付方式</div>
-                      {availableMethods.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {availableMethods.map((method) => (
-                            <button
-                              key={`${plan.id}-${method.key}`}
-                              onClick={() => void onSubscriptionPay(plan.id, method.key)}
-                              disabled={paymentLoading}
-                              className="inline-flex items-center gap-2 rounded-full border border-[var(--border-primary)] px-3 py-2 text-sm transition-colors hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60"
-                            >
-                              {paymentLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                              {method.label}
-                            </button>
+              {hasSubscriptionPlans ? (
+                <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                  {subscriptionPlans.map((item, index) => {
+                    const plan = item.plan;
+                    if (!plan?.id) return null;
+
+                    const limit = Number(plan.max_purchase_per_user || 0);
+                    const count = planPurchaseCountMap.get(plan.id) || 0;
+                    const reachedLimit = limit > 0 && count >= limit;
+                    const isRecommended = index === 0 && subscriptionPlans.length > 1;
+                    const resetText = formatSubscriptionResetPeriod(plan);
+                    const availableMethods = [
+                      ...(plan.stripe_price_id && topupInfo?.enable_stripe_topup ? [{ key: 'stripe', label: 'Stripe' }] : []),
+                      ...(plan.creem_product_id && topupInfo?.enable_creem_topup ? [{ key: 'creem', label: 'Creem' }] : []),
+                      ...walletPayMethods.map((method) => ({ key: method.type, label: method.name })),
+                    ];
+                    const planBenefits = [
+                      `有效期: ${formatSubscriptionDuration(plan)}`,
+                      ...(resetText !== '不重置' ? [`额度重置: ${resetText}`] : []),
+                      `总额度: ${Number(plan.total_amount || 0) > 0 ? formatQuota(Number(plan.total_amount || 0), status) : '不限'}`,
+                      ...(formatPlanLimit(plan.max_purchase_per_user) ? [formatPlanLimit(plan.max_purchase_per_user) as string] : []),
+                      ...(plan.upgrade_group ? [`升级分组: ${plan.upgrade_group}`] : []),
+                    ];
+
+                    return (
+                      <div key={plan.id} className={`flex h-full flex-col rounded-2xl border bg-[var(--bg-secondary)] p-5 ${isRecommended ? 'border-[var(--accent)] shadow-[0_0_0_1px_rgba(99,102,241,0.35)]' : 'border-[var(--border-primary)]'}`}>
+                        <div className="min-h-[72px]">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isRecommended && <span className="rounded-full bg-[var(--accent-bg)] px-2.5 py-1 text-xs text-[var(--accent-text)]">推荐</span>}
+                            <div className="truncate text-2xl font-semibold text-[var(--text-primary)]">{plan.title || '订阅套餐'}</div>
+                          </div>
+                          {plan.subtitle && <div className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--text-tertiary)]">{plan.subtitle}</div>}
+                        </div>
+
+                        <div className="mt-6 text-4xl font-semibold text-[var(--text-primary)]">{formatSubscriptionPrice(plan, status)}</div>
+
+                        <div className="mt-5 space-y-2 text-sm text-[var(--text-secondary)]">
+                          {planBenefits.map((benefit) => (
+                            <div key={benefit} className="flex items-start gap-2">
+                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]" />
+                              <span>{benefit}</span>
+                            </div>
                           ))}
                         </div>
-                      ) : (
-                        <div className="mt-3 text-sm leading-6 text-[var(--text-tertiary)]">当前套餐暂未配置可用支付渠道。</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+
+                        <div className="mt-6 border-t border-[var(--border-primary)] pt-4">
+                          {availableMethods.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {availableMethods.map((method) => (
+                                <button
+                                  key={`${plan.id}-${method.key}`}
+                                  onClick={() => void onSubscriptionPay(plan.id, method.key)}
+                                  disabled={paymentLoading || reachedLimit}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-primary)] px-4 py-2.5 text-sm transition-colors hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-60"
+                                >
+                                  {paymentLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                                  {reachedLimit ? '已达上限' : `立即订阅 · ${method.label}`}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-[var(--text-tertiary)]">当前套餐暂未配置可用支付渠道。</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : !hasAnySubscription ? (
+                <EmptyState title="当前没有可购买订阅套餐" description="如果你已经在 new-api 后端配置了订阅商品，请确认当前账号具备查看套餐的权限。" />
+              ) : null}
             </div>
           )}
         </SectionCard>
@@ -286,7 +496,7 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
           <SectionCard title="使用提示" description="把操作说明放在旁边，避免用户一边充值一边找帮助。">
             <ul className="space-y-3 text-sm leading-6 text-[var(--text-secondary)]">
               <li>- 输入或切换充值数量后，金额会自动更新，无需再单独点击“计算金额”。</li>
-              <li>- 支付完成后建议点击“刷新余额”，确认额度是否到账。</li>
+              <li>- 订阅套餐的有效期、总额度、额度重置和当前订阅的剩余额度，已按 new-api 原页面的口径展示。</li>
               <li>- 官方链接对应的是兑换码购买页，购买后请回到右侧输入兑换码完成到账。</li>
               {topupInfo?.min_topup !== undefined && <li>- 当前最小充值数量：{topupInfo.min_topup}</li>}
             </ul>

@@ -555,6 +555,11 @@ export const createNewApiProxyHandler = () => {
         return;
       }
 
+      if (pathname === '/api/new-api/subscription/self' && req.method === 'GET') {
+        await proxyAuthed(req, res, '/api/subscription/self');
+        return;
+      }
+
       if (pathname === '/api/new-api/amount' && req.method === 'POST') {
         await proxyAuthed(req, res, '/api/user/amount', { method: 'POST', body });
         return;

@@ -31,13 +31,14 @@ interface StatCardProps {
   label: string;
   value: React.ReactNode;
   hint?: React.ReactNode;
+  valueClassName?: string;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ label, value, hint }) => {
+export const StatCard: React.FC<StatCardProps> = ({ label, value, hint, valueClassName = '' }) => {
   return (
-    <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+    <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
       <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">{label}</div>
-      <div className="mt-3 text-2xl font-semibold text-[var(--text-primary)]">{value}</div>
+      <div className={`mt-3 min-w-0 text-xl font-semibold leading-tight text-[var(--text-primary)] sm:text-2xl ${valueClassName}`.trim()}>{value}</div>
       {hint && <div className="mt-2 text-sm text-[var(--text-tertiary)] leading-6">{hint}</div>}
     </div>
   );

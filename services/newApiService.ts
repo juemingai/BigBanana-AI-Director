@@ -114,7 +114,13 @@ export interface NewApiSubscriptionPlan {
   title?: string;
   subtitle?: string;
   price_amount?: number;
+  currency?: string;
+  duration_unit?: string;
+  duration_value?: number;
+  custom_seconds?: number;
   total_amount?: number;
+  quota_reset_period?: string;
+  quota_reset_custom_seconds?: number;
   upgrade_group?: string;
   max_purchase_per_user?: number;
   stripe_price_id?: string;
@@ -123,6 +129,26 @@ export interface NewApiSubscriptionPlan {
 
 export interface NewApiSubscriptionPlanItem {
   plan?: NewApiSubscriptionPlan;
+}
+
+export interface NewApiUserSubscription {
+  id: number;
+  plan_id: number;
+  amount_total?: number;
+  amount_used?: number;
+  start_time?: number;
+  end_time?: number;
+  status?: string;
+}
+
+export interface NewApiSubscriptionSummary {
+  subscription?: NewApiUserSubscription;
+}
+
+export interface NewApiSubscriptionSelf {
+  billing_preference?: string;
+  subscriptions?: NewApiSubscriptionSummary[];
+  all_subscriptions?: NewApiSubscriptionSummary[];
 }
 
 export interface NewApiToken {
@@ -381,6 +407,11 @@ export const getNewApiTopupInfo = async (): Promise<NewApiTopupInfo> => {
 export const getNewApiSubscriptionPlans = async (): Promise<NewApiSubscriptionPlanItem[]> => {
   const payload = await proxyFetch<NewApiEnvelope<NewApiSubscriptionPlanItem[]>>('/api/new-api/subscription/plans');
   return unwrapEnvelope(payload) || [];
+};
+
+export const getNewApiSubscriptionSelf = async (): Promise<NewApiSubscriptionSelf> => {
+  const payload = await proxyFetch<NewApiEnvelope<NewApiSubscriptionSelf>>('/api/new-api/subscription/self');
+  return unwrapEnvelope(payload) || {};
 };
 
 export const requestNewApiAmount = async (amount: number): Promise<number> => {

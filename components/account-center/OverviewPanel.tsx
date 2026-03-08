@@ -39,10 +39,10 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
         )}
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="当前余额" value={formatQuota(user?.quota, status)} hint="用于当前账号可消费额度" />
-          <StatCard label="累计消耗" value={formatQuota(user?.used_quota, status)} hint="便于快速判断最近使用情况" />
+          <StatCard label="当前余额" value={formatQuota(user?.quota, status)} valueClassName="break-all" hint="用于当前账号可消费额度" />
+          <StatCard label="累计消耗" value={formatQuota(user?.used_quota, status)} valueClassName="break-all" hint="便于快速判断最近使用情况" />
           <StatCard label="请求次数" value={user?.request_count ?? 0} hint="来自当前账号累计调用记录" />
-          <StatCard label="用户组" value={user?.group || '默认分组'} hint="决定当前账号可用的资源池与权限范围" />
+          <StatCard label="用户组" value={user?.group || '默认分组'} valueClassName="break-words" hint="决定当前账号可用的资源池与权限范围" />
         </div>
       </SectionCard>
 
@@ -69,24 +69,24 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
 
         <SectionCard title="账号信息" description="只保留用户真正关心的账号资料，不展示后台接入细节。">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+            <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
               <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">用户名</div>
-              <div className="mt-3 text-lg font-semibold text-[var(--text-primary)]">{user?.display_name || session.username}</div>
+              <div className="mt-3 break-words text-lg font-semibold leading-tight text-[var(--text-primary)]">{user?.display_name || session.username}</div>
               <div className="mt-2 text-sm text-[var(--text-tertiary)]">登录后在当前站点内直接管理账户能力。</div>
             </div>
-            <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+            <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
               <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">邮箱</div>
-              <div className="mt-3 text-lg font-semibold text-[var(--text-primary)]">{user?.email || '未绑定邮箱'}</div>
+              <div className="mt-3 break-all text-base font-semibold leading-tight text-[var(--text-primary)] sm:text-lg">{user?.email || '未绑定邮箱'}</div>
               <div className="mt-2 text-sm text-[var(--text-tertiary)]">用于注册验证、找回密码或接收通知。</div>
             </div>
-            <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+            <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
               <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">邀请码</div>
-              <div className="mt-3 text-lg font-semibold text-[var(--text-primary)]">{user?.aff_code || '未生成'}</div>
+              <div className="mt-3 break-all text-lg font-semibold leading-tight text-[var(--text-primary)]">{user?.aff_code || '未生成'}</div>
               <div className="mt-2 text-sm text-[var(--text-tertiary)]">可用于邀请协作者或参与平台活动。</div>
             </div>
-            <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
+            <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
               <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">账户状态</div>
-              <div className="mt-3 text-lg font-semibold text-[var(--text-primary)]">{user?.status === 1 ? '正常' : '可用'}</div>
+              <div className="mt-3 break-words text-lg font-semibold leading-tight text-[var(--text-primary)]">{user?.status === 1 ? '正常' : '可用'}</div>
               <div className="mt-2 text-sm text-[var(--text-tertiary)]">如有额度、令牌或支付异常，可先刷新账户信息。</div>
             </div>
           </div>

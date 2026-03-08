@@ -7,6 +7,7 @@ import {
   NewApiLog,
   NewApiLogStats,
   NewApiSession,
+  NewApiSubscriptionSelf,
   NewApiStatus,
   NewApiSubscriptionPlanItem,
   NewApiToken,
@@ -22,6 +23,7 @@ import {
   getNewApiSession,
   getNewApiSelf,
   getNewApiSubscriptionPlans,
+  getNewApiSubscriptionSelf,
   getNewApiTokens,
   getNewApiTopupInfo,
   loginNewApiUser,
@@ -100,6 +102,7 @@ const NewApiConsole: React.FC = () => {
   const [estimateError, setEstimateError] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [subscriptionPlans, setSubscriptionPlans] = useState<NewApiSubscriptionPlanItem[]>([]);
+  const [subscriptionSelf, setSubscriptionSelf] = useState<NewApiSubscriptionSelf | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   const [tokens, setTokens] = useState<NewApiToken[]>([]);
@@ -132,6 +135,9 @@ const NewApiConsole: React.FC = () => {
 
   const sessionUserId = session?.userId ?? null;
   const topupMethods = useMemo(() => normalizePayMethods(topupInfo?.pay_methods).filter((item) => item?.name && item?.type), [topupInfo]);
+  const activeSubscriptions = subscriptionSelf?.subscriptions ?? [];
+  const allSubscriptions = subscriptionSelf?.all_subscriptions ?? [];
+  const billingPreference = subscriptionSelf?.billing_preference ?? 'wallet_first';
 
   const resetWorkspaceState = useCallback(() => {
     estimateRequestIdRef.current += 1;
@@ -143,6 +149,7 @@ const NewApiConsole: React.FC = () => {
     setEstimateLoading(false);
     setEstimateError(null);
     setSubscriptionPlans([]);
+    setSubscriptionSelf(null);
     setSubscriptionLoading(false);
     setTokens([]);
     setTokenPage(1);
@@ -193,13 +200,28 @@ const NewApiConsole: React.FC = () => {
     }
   }, [activeEndpoint, showAlert]);
 
+  const refreshSubscriptionSelf = useCallback(async () => {
+    setSubscriptionLoading(true);
+    try {
+      const payload = await getNewApiSubscriptionSelf();
+      setSubscriptionSelf(payload);
+      return payload;
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : '获取订阅信息失败', { type: 'error' });
+      throw error;
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }, [showAlert]);
+
   const loadTopupInfo = useCallback(async () => {
     setTopupInfoLoading(true);
     setSubscriptionLoading(true);
     try {
-      const [topupInfoResult, subscriptionPlansResult] = await Promise.allSettled([
+      const [topupInfoResult, subscriptionPlansResult, subscriptionSelfResult] = await Promise.allSettled([
         getNewApiTopupInfo(),
         getNewApiSubscriptionPlans(),
+        getNewApiSubscriptionSelf(),
       ]);
 
       if (topupInfoResult.status === 'rejected') {
@@ -211,6 +233,7 @@ const NewApiConsole: React.FC = () => {
       const defaultTopupMethod = methods.find((item) => !['stripe', 'creem'].includes(item.type))?.type || methods[0]?.type || '';
       setTopupInfo(info);
       setSubscriptionPlans(subscriptionPlansResult.status === 'fulfilled' ? (subscriptionPlansResult.value || []).filter((item) => item?.plan?.id) : []);
+      setSubscriptionSelf(subscriptionSelfResult.status === 'fulfilled' ? subscriptionSelfResult.value : null);
       setSelectedPaymentMethod((current) => current || defaultTopupMethod);
       if ((info.amount_options?.length || 0) > 0) {
         setTopupAmount((current) => current || String(info.amount_options?.[0] ?? '10'));
@@ -647,13 +670,13 @@ const NewApiConsole: React.FC = () => {
         ) : (
           <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-              <div className={`${cardClassName} p-5`}>
+              <div className={`${cardClassName} min-w-0 p-5`}>
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]"><User className="h-6 w-6" /></div>
-                <div className="mt-4 text-lg font-semibold">{session.username}</div>
+                <div className="mt-4 break-words text-lg font-semibold leading-tight">{session.username}</div>
                 <div className="mt-1 text-sm text-[var(--text-tertiary)]">已登录，可直接管理余额、令牌与日志</div>
                 <div className="mt-5 grid gap-3">
-                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">余额</div><div className="mt-2 text-xl font-semibold">{formatQuota(session.user?.quota, status)}</div></div>
-                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">用户组</div><div className="mt-2 text-sm font-medium text-[var(--text-secondary)]">{session.user?.group || '默认分组'}</div></div>
+                  <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">余额</div><div className="mt-2 break-all text-lg font-semibold leading-tight sm:text-xl">{formatQuota(session.user?.quota, status)}</div></div>
+                  <div className="min-w-0 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">用户组</div><div className="mt-2 break-words text-sm font-medium text-[var(--text-secondary)]">{session.user?.group || '默认分组'}</div></div>
                 </div>
               </div>
               <div className={`${cardClassName} p-3`}>
@@ -676,7 +699,7 @@ const NewApiConsole: React.FC = () => {
               </SectionCard>
 
               {activeTab === 'overview' && <OverviewPanel status={status} session={session} walletLoading={walletLoading} onRefreshProfile={refreshProfile} onTabChange={setActiveTab} />}
-              {activeTab === 'billing' && <BillingPanel status={status} session={session} topupInfo={topupInfo} topupInfoLoading={topupInfoLoading} walletLoading={walletLoading} paymentLoading={paymentLoading} estimateLoading={estimateLoading} estimateError={estimateError} topupMethods={topupMethods} subscriptionPlans={subscriptionPlans} subscriptionLoading={subscriptionLoading} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod} topupAmount={topupAmount} setTopupAmount={setTopupAmount} payableAmount={payableAmount} redeemCode={redeemCode} setRedeemCode={setRedeemCode} onOnlinePay={handleOnlinePay} onSubscriptionPay={handleSubscriptionPay} onRedeemCode={handleRedeemCode} onRefreshProfile={refreshProfile} />}
+              {activeTab === 'billing' && <BillingPanel status={status} session={session} topupInfo={topupInfo} topupInfoLoading={topupInfoLoading} walletLoading={walletLoading} paymentLoading={paymentLoading} estimateLoading={estimateLoading} estimateError={estimateError} topupMethods={topupMethods} subscriptionPlans={subscriptionPlans} subscriptionLoading={subscriptionLoading} billingPreference={billingPreference} activeSubscriptions={activeSubscriptions} allSubscriptions={allSubscriptions} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod} topupAmount={topupAmount} setTopupAmount={setTopupAmount} payableAmount={payableAmount} redeemCode={redeemCode} setRedeemCode={setRedeemCode} onOnlinePay={handleOnlinePay} onSubscriptionPay={handleSubscriptionPay} onRedeemCode={handleRedeemCode} onRefreshProfile={refreshProfile} onRefreshSubscriptions={refreshSubscriptionSelf} />}
               {activeTab === 'tokens' && <TokensPanel status={status} tokens={tokens} tokensLoading={tokensLoading} tokenPage={tokenPage} tokenTotal={tokenTotal} tokenPageSize={tokenPageSize} createTokenLoading={createTokenLoading} tokenForm={tokenForm} setTokenForm={setTokenForm} onCreateToken={handleCreateToken} onRefreshTokens={() => loadTokens(tokenPage)} onPageChange={loadTokens} onToggleToken={handleToggleToken} onDeleteToken={handleDeleteToken} onCopyToken={handleCopyToken} onUseTokenInProject={handleUseTokenInProject} />}
               {activeTab === 'logs' && <LogsPanel status={status} logs={logs} logsLoading={logsLoading} logStats={logStats} logType={logType} setLogType={setLogType} logStart={logStart} setLogStart={setLogStart} logEnd={logEnd} setLogEnd={setLogEnd} logTokenName={logTokenName} setLogTokenName={setLogTokenName} logModelName={logModelName} setLogModelName={setLogModelName} logPage={logPage} logPageSize={logPageSize} logTotal={logTotal} onSearch={() => loadLogs(1)} onPageChange={loadLogs} />}
             </main>
