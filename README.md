@@ -176,7 +176,7 @@ npm install
 npm run dev
 
 # 4. 访问应用
-# 浏览器打开 http://localhost:3000
+# 浏览器打开 http://localhost:3010
 ```
 
 ### 方式二：Docker 部署（推荐）

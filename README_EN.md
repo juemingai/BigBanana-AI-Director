@@ -171,7 +171,7 @@ npm install
 npm run dev
 
 # 4. Open in browser
-# Visit http://localhost:3000
+# Visit http://localhost:3010
 ```
 
 ### Option 2: Docker Deployment (Recommended)

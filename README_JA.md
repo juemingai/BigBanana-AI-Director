@@ -174,7 +174,7 @@ npm install
 npm run dev
 
 # 4. ブラウザでアクセス
-# http://localhost:3000 を開く
+# http://localhost:3010 を開く
 ```
 
 ### 方法 2：Docker デプロイ（推奨）
