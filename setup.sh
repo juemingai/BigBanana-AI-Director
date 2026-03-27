@@ -8,6 +8,7 @@ cd "$ROOT_DIR"
 MIN_NODE_MAJOR=20
 ENV_FILE=".env.local"
 ENV_EXAMPLE_FILE=".env.example"
+INSTALL_RETRIES=3
 
 log() {
   printf '[setup] %s\n' "$1"
@@ -16,6 +17,31 @@ log() {
 fail() {
   printf '[setup] 错误: %s\n' "$1" >&2
   exit 1
+}
+
+install_dependencies() {
+  local attempt=1
+  local install_cmd="npm install"
+
+  if [ -f "package-lock.json" ]; then
+    install_cmd="npm ci"
+  fi
+
+  while [ "$attempt" -le "$INSTALL_RETRIES" ]; do
+    log "开始安装依赖（第 ${attempt}/${INSTALL_RETRIES} 次）: ${install_cmd}"
+    if $install_cmd; then
+      return 0
+    fi
+
+    if [ "$attempt" -lt "$INSTALL_RETRIES" ]; then
+      log "依赖安装失败，5 秒后自动重试..."
+      sleep 5
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  fail "依赖安装连续失败。请检查网络、代理或 npm registry 配置。当前可先尝试执行：npm config set registry https://registry.npmjs.org/"
 }
 
 command -v node >/dev/null 2>&1 || fail "未检测到 node，请先安装 Node.js ${MIN_NODE_MAJOR}+。"
@@ -45,8 +71,7 @@ else
   log "$ENV_FILE 已存在，跳过创建。"
 fi
 
-log "开始安装依赖..."
-npm install
+install_dependencies
 
 log "环境准备完成。"
 log "启动开发环境请执行: ./start.sh"
